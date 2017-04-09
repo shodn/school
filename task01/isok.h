@@ -1,5 +1,6 @@
 #include <type_traits>
 #include <cstdio>
+#include <cstdint>
 
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -58,9 +59,10 @@ private:
 
 private:
 
-	T m_buffer_stack[BUFFER_STACK_SIZE];
+	uint8_t m_buffer_stack[BUFFER_STACK_SIZE * ELEMENT_SIZE];
+	T * m_data_stack = reinterpret_cast<T *>(m_buffer_stack);
 
-	T * m_data = m_buffer_stack;
+	T * m_data = m_data_stack;
 	int m_size = 0;
 	int m_capacity = BUFFER_STACK_SIZE;
 };
@@ -176,13 +178,16 @@ T * myvector<T>::end()
 template <typename T>
 void myvector<T>::clear()
 {
-	if (m_data != m_buffer_stack)
+	if (m_data != m_data_stack)
 	{
 		free_data();
-		m_data = m_buffer_stack;
+		m_data = m_data_stack;
 		m_capacity = BUFFER_STACK_SIZE;
 	}
-	clean_stack_data();
+	else
+	{
+		clean_stack_data();
+	}
 	m_size = 0;
 }
 
@@ -242,7 +247,7 @@ void myvector<T>::resize_internal(int new_size)
 	static const float min_factor = 1.2f;
 	static const float factor_step = 0.2f;
 
-	if (m_data == m_buffer_stack && new_size <= BUFFER_STACK_SIZE)
+	if (m_data == m_data_stack && new_size <= BUFFER_STACK_SIZE)
 		return;
 
 	int chosen_size = BUFFER_STACK_SIZE * 4;
@@ -265,10 +270,10 @@ void myvector<T>::resize_internal(int new_size)
 
 	if (chosen_size <= BUFFER_STACK_SIZE)
 	{
-		if (m_data != m_buffer_stack)
+		if (m_data != m_data_stack)
 		{
 			free_data();
-			m_data = m_buffer_stack;
+			m_data = m_data_stack;
 			m_capacity = BUFFER_STACK_SIZE;
 		}
 	}
@@ -276,7 +281,7 @@ void myvector<T>::resize_internal(int new_size)
 	{
 		bool need_to_copy = false;
 		T * new_data = nullptr;
-		if (m_data == m_buffer_stack)
+		if (m_data == m_data_stack)
 		{
 			// Create new memory
 			new_data = reinterpret_cast<T *>(malloc(chosen_size * ELEMENT_SIZE));
@@ -311,15 +316,10 @@ void myvector<T>::resize_internal(int new_size)
 						new (dst_data) T(std::move_if_noexcept(*src_data));
 				}
 			}
-			if (m_data == m_buffer_stack)
-			{
-				// Clean buffer stack
+			if (m_data == m_data_stack)
 				clean_stack_data();
-			}
 			else
-			{
 				free_data();
-			}
 		}
 		m_data = new_data;
 		m_capacity = chosen_size;
@@ -342,7 +342,7 @@ void myvector<T>::clean_stack_data()
 {
 	if (!IS_POD)
 	{
-		for (int i = 0; i < BUFFER_STACK_SIZE; ++i)
+		for (int i = 0; i < BUFFER_STACK_SIZE && i < m_size; ++i)
 			m_data[i].~T();
 	}
 }
