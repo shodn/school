@@ -122,15 +122,7 @@ void myvector<T>::erase(int index)
 		if (index < m_size - 1)
 		{
 			// Not last element erased so we should move tail of a vector
-			if (IS_POD)
-			{
-				memmove(m_data + index, m_data + index + 1, (m_size - index - 1) * ELEMENT_SIZE);
-			}
-			else
-			{
-				while (++index < m_size)
-					new (&m_data[index - 1]) T(std::move_if_noexcept(m_data[index]));
-			}
+			memmove(m_data + index, m_data + index + 1, (m_size - index - 1) * ELEMENT_SIZE);
 		}
 		--m_size;
 		m_data[m_size].~T(); // probably required if no move semantics supported
@@ -148,7 +140,7 @@ void myvector<T>::push_back(const T & value)
 template <typename T>
 void myvector<T>::erase(const T * item)
 {
-	erase(item - m_data);
+	erase(static_cast<int>(item - m_data));
 }
 
 template <typename T>
@@ -303,19 +295,7 @@ void myvector<T>::resize_internal(int new_size)
 		{
 			int copy_size = chosen_size < m_size ? chosen_size : m_size;
 			if (copy_size > 0)
-			{
-				if (IS_POD)
-				{
-					memcpy(new_data, m_data, copy_size * ELEMENT_SIZE);
-				}
-				else
-				{
-					T * src_data = m_data;
-					T * dst_data = new_data;
-					for (int i = 0; i < copy_size; ++i, ++src_data, ++dst_data)
-						new (dst_data) T(std::move_if_noexcept(*src_data));
-				}
-			}
+				memcpy(new_data, m_data, copy_size * ELEMENT_SIZE);
 			if (m_data == m_data_stack)
 				clean_stack_data();
 			else
