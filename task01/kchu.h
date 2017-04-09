@@ -1,15 +1,8 @@
-#include <stdio.h>
-
-typedef long long llong;
-typedef unsigned long long ullong;
-
 #include <stdlib.h>
 #include <assert.h>
-#include <vector>
-#include <typeinfo>
 #include <functional>
 
-const int DEFAULT_STACK_SIZE = 16;
+const int DEFAULT_STACK_SIZE = 32;
 
 template<typename T> class myvector
 {
@@ -24,8 +17,8 @@ public:
 		clearData();
 	}
 
-	int capacity() { return m_capacity; }
-	int size() { return m_itemsCount; }
+	int capacity() const { return m_capacity; }
+	int size() const { return m_itemsCount; }
 
 	void add(const T & value) // because we can
 	{
@@ -38,17 +31,23 @@ public:
 
 	T & add() // easy handmade emplace_back()
 	{
-		auto obj = new T();
-		add(*obj);
-		return *obj;
+		add(T());
+		return m_data[m_itemsCount - 1];
 	}
 
 	void erase(int index) // easy handmade erase()
 	{
-		assert(index >= 0 && index < m_itemsCount);
-
-		copyData(m_data + index, m_data + index + 1, m_itemsCount - index);
-		m_itemsCount--;
+		if (index < 0 || index >= m_itemsCount)
+		{
+			return;
+		}
+		m_data[index].~T();
+		//moveData(m_data + index, m_data + index + 1, m_itemsCount - index - 1);
+		for (auto i = index; i < m_itemsCount - 1; i++)
+		{
+			m_data[i] = m_data[i + 1];
+		}
+		--m_itemsCount;
 	}
 
 	void push_back(const T & value) // for test compatibility
@@ -58,13 +57,11 @@ public:
 
 	void erase(const T * item) // for test compatibility
 	{
-		int indexToDelete = item - m_data;
-		erase(indexToDelete);
+		erase(item - m_data);
 	}
 
 	T & operator[](int index)
 	{
-		assert(index >= 0 && index < m_itemsCount);
 		return m_data[index];
 	}
 
@@ -81,24 +78,40 @@ public:
 
 	T * end()
 	{
-		assert(m_itemsCount > 0);
 		return m_data + m_itemsCount;
 	}
 
 	void clear()
 	{
 		clearData();
+		if (m_data == m_stackData)
+		{
+			for (auto i = 0; i < m_itemsCount; i++)
+			{
+				m_stackData[i].~T();
+			}
+		}
 		initDefault();
 	}
 
 	void resize(int new_size)
 	{
-		T* newData = new T[new_size];
-		copyData(newData, m_data, new_size < m_itemsCount ? new_size : m_itemsCount);
-		m_capacity = new_size;
-		m_itemsCount = new_size;
-		clearData();
-		m_data = newData;
+		if (new_size <= DEFAULT_STACK_SIZE)
+		{
+			clearData();
+			m_data = m_stackData;
+			m_capacity = DEFAULT_STACK_SIZE;
+			m_itemsCount = new_size;
+		}
+		else
+		{
+			T* newData = new T[new_size];
+			copyData(newData, m_data, new_size < m_itemsCount ? new_size : m_itemsCount);
+			m_capacity = new_size;
+			m_itemsCount = new_size;
+			clearData();
+			m_data = newData;
+		}
 	}
 
 	void reserve(int min_capacity)
@@ -125,7 +138,7 @@ private:
 
 	void increaseCapacity()
 	{
-		int newCapacity = 0;
+		int newCapacity;
 		if (m_capacity < 1024)
 		{
 			newCapacity = m_capacity * 4;
@@ -154,6 +167,11 @@ private:
 		m_data = newData;
 	}
 
+	static void moveData(T* dst, const T* src, int length)
+	{
+		memmove(dst, src, length * sizeof(T));
+	}
+
 	void copyData(T* dst, const T* src, int length)
 	{
 		if (!std::is_pod<T>())
@@ -178,8 +196,8 @@ private:
 	}
 
 private:
-	int m_capacity;
 	int m_itemsCount;
+	int m_capacity;
 	T* m_data;
 	T m_stackData[DEFAULT_STACK_SIZE];
 };
