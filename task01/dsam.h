@@ -64,6 +64,9 @@ public:
 	{
 		assert(index >= 0);
 		assert(index < used);
+
+		if (index < 0 || index >= used)
+			return;
 		
 		if (data == data_on_stack || index > used / 4)
 		{
