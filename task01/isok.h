@@ -53,6 +53,9 @@ private:
 
 	void resize_internal(int new_size);
 
+	void free_data();
+	void clean_stack_data();
+
 private:
 
 	T m_buffer_stack[BUFFER_STACK_SIZE];
@@ -113,6 +116,7 @@ void myvector<T>::erase(int index)
 {
 	if (index >= 0 && index < m_size)
 	{
+		m_data[index].~T();
 		if (index < m_size - 1)
 		{
 			// Not last element erased so we should move tail of a vector
@@ -122,7 +126,6 @@ void myvector<T>::erase(int index)
 			}
 			else
 			{
-				m_data[index].~T();
 				while (++index < m_size)
 					new (&m_data[index - 1]) T(std::move_if_noexcept(m_data[index]));
 			}
@@ -175,16 +178,11 @@ void myvector<T>::clear()
 {
 	if (m_data != m_buffer_stack)
 	{
-		delete[] m_data;
+		free_data();
 		m_data = m_buffer_stack;
 		m_capacity = BUFFER_STACK_SIZE;
 	}
-	else if (!IS_POD)
-	{
-		for (int i = 0; i < BUFFER_STACK_SIZE; ++i)
-			m_data[m_size].~T();
-	}
-
+	clean_stack_data();
 	m_size = 0;
 }
 
@@ -193,18 +191,26 @@ void myvector<T>::resize(int new_size)
 {
 	if (new_size < m_size)
 	{
+		// Remove elements
 		if (!IS_POD)
 		{
 			for (int i = new_size; i < m_size; ++i)
-				m_data[m_size].~T();
+				m_data[i].~T();
 		}
 	}
 	else if (new_size > m_size)
 	{
+		// Add elements
 		resize_internal(new_size);
-
 		if (IS_POD)
+		{
 			memset(m_data + m_size, 0, (new_size - m_size) * ELEMENT_SIZE);
+		}
+		else
+		{
+			for (int i = m_size; i < new_size; ++i)
+				new (&m_data[i]) T();
+		}
 	}
 	m_size = new_size;
 }
@@ -219,15 +225,15 @@ void myvector<T>::reserve(int min_capacity)
 template <typename T>
 void myvector<T>::check_before_add(int count)
 {
-	if (m_size + 1 + count > m_capacity)
-		resize_internal(m_size + 1 + count);
+	if (m_size + count > m_capacity)
+		resize_internal(m_size + count);
 }
 
 template <typename T>
 void myvector<T>::check_after_remove()
 {
 	if (m_size * 4 < m_capacity)
-		resize_internal(m_size + 1);
+		resize_internal(m_size);
 }
 
 template <typename T>
@@ -236,10 +242,10 @@ void myvector<T>::resize_internal(int new_size)
 	static const float min_factor = 1.2f;
 	static const float factor_step = 0.2f;
 
-	if (m_data == m_buffer_stack && new_size < BUFFER_STACK_SIZE)
+	if (m_data == m_buffer_stack && new_size <= BUFFER_STACK_SIZE)
 		return;
 
-	int chosen_size = 128;
+	int chosen_size = BUFFER_STACK_SIZE * 4;
 	float factor = 4.0f;
 	while (chosen_size - 1 < new_size)
 	{
@@ -261,39 +267,82 @@ void myvector<T>::resize_internal(int new_size)
 	{
 		if (m_data != m_buffer_stack)
 		{
-			delete[] m_data;
+			free_data();
 			m_data = m_buffer_stack;
 			m_capacity = BUFFER_STACK_SIZE;
 		}
 	}
 	else
 	{
-		T * new_data = new T[chosen_size];
-		int copy_size = chosen_size < m_size ? chosen_size : m_size;
-		if (copy_size > 0)
+		bool need_to_copy = false;
+		T * new_data = nullptr;
+		if (m_data == m_buffer_stack)
 		{
-			if (IS_POD)
+			// Create new memory
+			new_data = reinterpret_cast<T *>(malloc(chosen_size * ELEMENT_SIZE));
+			need_to_copy = true;
+		}
+		else
+		{
+			// Try to reallocate memory
+			new_data = reinterpret_cast<T *>(realloc(m_data, chosen_size * ELEMENT_SIZE));
+
+			// This can be failed so we should check this and workaround
+			if (!new_data)
 			{
-				memcpy(new_data, m_data, copy_size * ELEMENT_SIZE);
+				new_data = reinterpret_cast<T *>(malloc(chosen_size * ELEMENT_SIZE));
+				need_to_copy = true;
+			}
+		}
+		if (need_to_copy)
+		{
+			int copy_size = chosen_size < m_size ? chosen_size : m_size;
+			if (copy_size > 0)
+			{
+				if (IS_POD)
+				{
+					memcpy(new_data, m_data, copy_size * ELEMENT_SIZE);
+				}
+				else
+				{
+					T * src_data = m_data;
+					T * dst_data = new_data;
+					for (int i = 0; i < copy_size; ++i, ++src_data, ++dst_data)
+						new (dst_data) T(std::move_if_noexcept(*src_data));
+				}
+			}
+			if (m_data == m_buffer_stack)
+			{
+				// Clean buffer stack
+				clean_stack_data();
 			}
 			else
 			{
-				T * src_data = m_data;
-				T * dst_data = new_data;
-				for (int i = 0; i < copy_size; ++i, ++src_data, ++dst_data)
-					new (dst_data) T(std::move_if_noexcept(*src_data));
+				free_data();
 			}
-		}
-		if (m_data != m_buffer_stack)
-		{
-			delete[] m_data;
-		}
-		else if (!IS_POD)
-		{
-			for (int i = 0; i < BUFFER_STACK_SIZE; ++i)
-				m_data[m_size].~T();
 		}
 		m_data = new_data;
 		m_capacity = chosen_size;
+	}
+}
+
+template <typename T>
+void myvector<T>::free_data()
+{
+	if (!IS_POD)
+	{
+		for (int i = 0; i < m_size; ++i)
+			m_data[i].~T();
+	}
+	free(m_data);
+}
+
+template <typename T>
+void myvector<T>::clean_stack_data()
+{
+	if (!IS_POD)
+	{
+		for (int i = 0; i < BUFFER_STACK_SIZE; ++i)
+			m_data[i].~T();
 	}
 }
