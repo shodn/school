@@ -53,6 +53,7 @@ public:
 
     void erase(int index)
     {
+        assert(index >= 0 && index < m_size && "Index out of range");
         if (!POD)
             (m_data + index)->~T();
         memmove(m_data + index, m_data + index + 1, (m_size - index) * sizeof(T));
@@ -75,11 +76,13 @@ public:
 
     T& operator[](int index)
     {
+        assert(index >= 0 && index < m_size && "Index out of range");
         return m_data[index];
     }
 
     const T& operator[](int index) const
     {
+        assert(index >= 0 && index < m_size);
         return m_data[index];
     }
 
@@ -100,6 +103,7 @@ public:
 
     void resize(int new_size)
     {
+        assert(new_size >= 0 && "Negative size");
         if (new_size > m_size)
         {
             reserve(new_size);
@@ -117,6 +121,7 @@ public:
 
     void reserve(int min_capacity)
     {
+        assert(min_capacity >= 0 && "Negative capacity");
         if (min_capacity > StaticSize)
         {
             if (m_data == m_static_data)
