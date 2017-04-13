@@ -16,27 +16,27 @@ const double bigK = 1.2;
 typedef long long llong;
 typedef unsigned long long ullong;
 
-template<typename T> bool isPOD(T t)
+template<typename T> bool isPOD(T &t)
 {
 	return false;
 }
 
-template<> bool isPOD<int>(int a)
+template<> bool isPOD<int>(int &a)
 {
 	return true;
 }
 
-template<> bool isPOD<char>(char a)
+template<> bool isPOD<char>(char &a)
 {
 	return true;
 }
 
-template<> bool isPOD<float>(float a)
+template<> bool isPOD<float>(float &a)
 {
 	return true;
 }
 
-template<> bool isPOD<double>(double a)
+template<> bool isPOD<double>(double &a)
 {
 	return true;
 }
@@ -80,9 +80,10 @@ public:
 	}
 	void erase(int index) // easy handmade erase()
 	{
+	    assert( 0 <= index && index < len );
 		if( !isPOD(*data))
 			(data + index)->~T();
-		copy(data+index+1, data+len, data+index);
+        shiftleft(data+index+1, data+len, 1);
 		--len;
 	}
 
@@ -117,49 +118,33 @@ public:
 
 	void clear()
 	{
-		if( data != small )
-		{
-			if( !isPOD(*data) )
-			{
-				for(int i=0; i<len; ++i)//º¡ºº¡ º’¶ìº§¶ìº’º¶÷¶í º‡º²¶â¶÷¶á¶çº¡¶÷º¬¶á¶ì?
-					(data+i)->~T();
-			}
-//			delete[] (data);
-		}
-		data = small;
+        if( !isPOD(*data) )
+        {
+            if( data == small )
+            {
+                for(int i=0; i<maxLen; ++i)
+                    (data+i)->~T();
+            }
+            else
+                delete[] (data);
+	    }
+        data = small;
 		len = 0;
 		maxLen = startSize;
 	}
 	void resize(int new_size)
 	{
+	    assert( 0 <= new_size && new_size < INT_MAX );
 		if( new_size > len )
 		{
 			if( new_size > maxLen )
-				reserve(maxLen);
-			if( !isPOD(*data))
-			{
-				T * first = data + len, * last = data + new_size;
-				while( first != last )
-				{
-					*first = T();
-					++first;
-				}
-			}
+				reserve(new_size);
 		}
 		if( new_size < len )
 		{
-			if( isPOD(*data) && new_size * 2 < len )
+		    if( !isPOD(*data) )
 			{
-				if( new_size < startSize * 2 )
-					new_size = startSize * 2;
-				T * new_data = new T[new_size];
-				copy(data, data+new_size, new_data);
-				delete[] (data);
-				data = new_data;
-			}
-			else if( !isPOD(*data) )
-			{
-				for(int i=new_size; i<len; ++i)//º¡ºº¡ º’¶ìº§¶ìº’º¶÷¶í º‡º²¶â¶÷¶á¶çº¡¶÷º¬¶á¶ì?
+				for(int i=new_size; i<len; ++i)
 					(data+i)->~T();
 			}
 		}
@@ -167,6 +152,7 @@ public:
 	}
 	void reserve(int min_capacity)
 	{
+	    assert( 0 <= min_capacity && min_capacity < INT_MAX );
 		if( min_capacity > maxLen )
 		{
 			maxLen = min_capacity;
@@ -185,8 +171,9 @@ public:
 		}
 	}
 private:
-	void copy(T *first, T *last, T *result)
+	void shiftleft(T *first, T *last, int shift)
 	{
+	    T *result = first - shift;
 		while( first != last )
 		{
 			*result = *first;
