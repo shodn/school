@@ -80,7 +80,8 @@ public:
 	}
 	void erase(int index) // easy handmade erase()
 	{
-	    assert( 0 <= index && index < len );
+	    if( 0 <= index && index < len )
+	        return;
 		if( !isPOD(*data))
 			(data + index)->~T();
         shiftleft(data+index+1, data+len, 1);
@@ -134,7 +135,8 @@ public:
 	}
 	void resize(int new_size)
 	{
-	    assert( 0 <= new_size && new_size < INT_MAX );
+	    if( 0 <= new_size && new_size < INT_MAX )
+	        return;
 		if( new_size > len )
 		{
 			if( new_size > maxLen )
@@ -152,7 +154,8 @@ public:
 	}
 	void reserve(int min_capacity)
 	{
-	    assert( 0 <= min_capacity && min_capacity < INT_MAX );
+        if( 0 <= min_capacity && min_capacity < INT_MAX )
+            return;
 		if( min_capacity > maxLen )
 		{
 			maxLen = min_capacity;
