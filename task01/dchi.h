@@ -17,9 +17,9 @@ class myvector {
 		myvector() : data(staticData), reserved(staticSize + 1), length(0) {
 			
 		}
-		//copy constructor
+
 		~myvector() {
-			if(data != staticData) delete data;
+			if(data != staticData) delete [] data;
 		}
 		
 		inline int capacity() const {
@@ -45,7 +45,7 @@ class myvector {
 		}
 		
 		inline void erase(int index) {
-			assert((unsigned int)index < (unsigned int)length && "myvector::erase(): bad index");
+			if((unsigned int)index > (unsigned int)length) return;
 			copy(data + index, data + index + 1, --length - index);
 		}
 		
