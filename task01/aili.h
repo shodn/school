@@ -136,7 +136,9 @@ public:
 
 	void erase(int index) // easy handmade erase()
 	{
-		assert(0 <= index && index < m_cur_length);
+		if (index < 0 || m_cur_length <= index)
+			return;
+
 		if (IsPodType<T>::Value)
 		{
 			memmove(&m_data[index], &m_data[index+1], sizeof(T) * (m_cur_length - index - 1));
@@ -160,7 +162,6 @@ public:
 
 	void erase(const T * item) // for test compatibility
 	{
-		assert(m_data <= item && item < m_data + m_cur_length);
 		const int erased_index = item - m_data;
 		erase(erased_index);
 	}
@@ -217,16 +218,16 @@ public:
 			if (new_size > m_max_capacity)
 			{
 				reallocate(new_size);
-				if (IsPodType<T>::Value)
+			}
+			if (IsPodType<T>::Value)
+			{
+				memset(&m_data[m_cur_length], 0, sizeof(T)* (new_size - m_cur_length));
+			}
+			else
+			{
+				for (int createdIndex = m_cur_length; createdIndex < new_size; ++createdIndex)
 				{
-					memset(&m_data[m_cur_length], 0, sizeof(T)* (new_size - m_cur_length));
-				}
-				else
-				{
-					for (int createdIndex = m_cur_length; createdIndex < new_size; ++createdIndex)
-					{
-						new (&m_data[createdIndex])T;
-					}
+					new (&m_data[createdIndex])T;
 				}
 			}
 		}
